@@ -69,7 +69,7 @@ dkms.conf
 
 # Jupyter notebook
 *.ipynb
-*.cpp
+
 *.txt
 *.py
 *.DS_store
