@@ -43,13 +43,28 @@ int main(void){
     double new_v[N][2];
     double new_a[N][2];
     double E[N];
-    int num_vueltas[N]; //Periodos
+    double all_energies[15000][N];
+    int num_vueltas[N]; //numero de vueltas para definir un periodo
+    string planetas[N];
+    planetas[0] = "SOL";
+    planetas[1] = "MERCURY";
+    planetas[2] = "VENUS";
+    planetas[3] = "EARTH";
+    planetas[4] = "MARS";
+    planetas[5] = "JUPYTER";
+    planetas[6] = "SATURN";
+    planetas[7] = "URANUS";
+    planetas[8] = "NEPTUNE";
     FILE *fwrite;
     FILE *fread;
     FILE *fenergy;
+    FILE *fperiod;
+    FILE *fenergiamedia;
     fwrite = fopen("output.txt","w");
     fread = fopen("input.txt","r");
     fenergy = fopen("energia.txt","w");
+    fenergiamedia = fopen("energiamedia.txt","w");
+    fperiod = fopen("periodos.txt","w");
 
     
     //Paso 0:: Inicializar y transformar las masas, posiciones y velocidades iniciales.
@@ -60,7 +75,6 @@ int main(void){
         i++;
         stop++;
     }
-
 
 
 
@@ -96,6 +110,7 @@ int main(void){
                 fprintf(fwrite,"%lf, ", new_r[i][0]);
                 fprintf(fwrite,"%lf\n", new_r[i][1]);
                 fprintf(fenergy,"%.4e\n", E[i]);
+                all_energies[k][i] = E[i];
         }
         fprintf(fwrite,"\n");
         fprintf(fenergy,"\n");
@@ -106,11 +121,47 @@ int main(void){
             }
         }
     }
-    double T[N];
-    for(int i=0;i<N;i++){
+    double T[N]; //Paso 7.5: Escribir el periodo en unidades de dias
 
-        T[i] = (num_vueltas[i]+1)*0.1*58.1;
-        cout << to_string(T[i]) << endl;
+
+    for(int i=0;i<N;i++){
+        if(i==0) T[0]=0.0; //Definimos el periodo del Sol como cero.
+        else T[i] = (num_vueltas[i]+1)*0.1*58.1; //El bucle comienza en k==0, luego hay que sumar uno al numero de vueltas totales
+        fprintf(fperiod,"%s: ",planetas[i].c_str());
+        fprintf(fperiod,"%lf ",T[i]);
+        fprintf(fperiod,"%s\n", "days");
+    }
+    //Calculo media y desviación típica en porcentaje
+    double media[N];
+    double sigma[N];
+    for(int k=0;k<15000;k++){
+        for(int i=0; i<N; i++){
+            media[i] = media[i] + all_energies[k][i];
+        }
+    }
+    
+    for(int i=0;i<N;i++){
+        media[i]=0.0;
+        for(int k=0; k<15000; k++){
+            media[i] = media[i] + all_energies[k][i];
+        }
+        media[i] = media[i]/15000.0;
+    }
+    for(int i=1; i<N;i++){
+        sigma[i]=0.0;
+        for(int k=0; k<15000; k++){
+            sigma[i] = sigma[i] + (all_energies[k][i]-media[i])*(all_energies[k][i]-media[i]);
+        }
+        sigma[i] = sqrt(sigma[i]/15000.0);
+        sigma[i]=100*sigma[i]/(-1.0*media[i]);
+    }
+    sigma[0]=0.0;
+    for(int i=0; i<N; i++){
+        fprintf(fenergiamedia,"%s\n",planetas[i].c_str());
+        fprintf(fenergiamedia,"\t%s", "MEDIA: ");
+        fprintf(fenergiamedia,"%.4e\n",media[i]);
+        fprintf(fenergiamedia,"\t%s","DESVIACIÓN TÍPICA (RESP. MEDIA): ");
+        fprintf(fenergiamedia,"%f %\n",sigma[i]);
     }
 
     fclose(fwrite);
@@ -214,7 +265,7 @@ void calculate_ene(double m[],double r[][2], double v[][2],double E[]){
 bool check_period(double r[],double rstart[]){
     double distx = fabs(100*(r[0]-rstart[0])/rstart[0]);
     double disty = r[1];
-    if(distx<5 && disty<0 && disty > -0.15){
+    if(distx<3 && disty<0 && disty > -0.15){
         return true;
     }
     else return false;
