@@ -6,9 +6,10 @@
 const double G = 6.6743e-11;
 const double mass_sun = 1.99e30;
 const double c = 1.99e30;
-const int N = 100;
+const int N = 300;
 const int dim = 2;
 const double h = 0.1;
+const double PI = 3.1415;
 
 using namespace std;
 
@@ -20,6 +21,8 @@ public:
     double radius;
     double x,y;
     double vx,vy;
+    double ax, ay;
+    double wx, wy;
     bool visible = true; //False si ha sido absorbido; True si no ha sido absorbido
     bool rock; //False si es gaseoso; True si es rocoso
     
@@ -28,19 +31,15 @@ public:
 
 
 //Funciones para inicializar
-void inicializar(double m[],double r[][2],double v[][2]);
-void transform_mass(double m[]);
-void transform_pos(double r[][2]);
-void transform_vel(double v[][2]);
+void ini_planets(Planet planets[]);
 
 //Algoritmo para el movimiento de los planetas
-void move_planets(Planet planets[]);
-void calculate_acc(double m[],double r[][2], double (&a)[N][2]);
-void calculate_pos(double r[][2], double v[][2], double a[][2], double (&new_r)[N][2]);
-void calculate_w(double v[][2], double a[][2], double (&w)[N][2]);
-void calculate_vel(double w[][2],double new_a[][2],double (&new_v)[N][2]);
-void calculate_ene(double m[],double r[][2], double v[][2],double E[]);
-bool check_period(double r[],double rstart[]);
+
+void acceleration(Planet planets[]);
+void positions(Planet planets[]);
+void w(Planet planets[]);
+void velocity(Planet planets[]);
+void move(Planet planets[]);
 
 //Algoritmo para generar choque
 void colision(Planet &p1, Planet &p2);
@@ -50,29 +49,40 @@ void printPlanets(Planet planets[]);
 
 
 
-
-
 void ini_planets(Planet planets[]){ //Me he quedado x aqui.
     
-    planets[0].mass = 1.0;
+    planets[0].mass = 1.5;
     planets[0].x = 0.0;
     planets[0].y = 0.0;
     planets[0].vx = 0.0;
     planets[0].vy = 0.0;
+    planets[0].ax = 0.0;
+    planets[0].ay = 0.0;
+    planets[0].wx = 0.0;
+    planets[0].wy = 0.0;  
+
     planets[0].radius = 2.0;
     planets[0].rock = false; //El sol no interacctua en principio.
 
+    double omega; //angular velocity
+    double rho; //polar coordinate
+    double alpha; //angular coordinate
     FILE *fwrite;
     fwrite = fopen("radius.txt","w");
     fprintf(fwrite,"%lf\n",planets[0].radius);
     for(int i=1;i<N;i++){
         planets[i].mass = 0.01*(double)rand() / RAND_MAX;
-        if(i<=N/10) planets[i].rock = true;
+        if(i<=N/2) planets[i].rock = true;
         else planets[i].rock = false;
-        planets[i].x = 30*(-1+2*(double)rand() / RAND_MAX);
-        planets[i].y = 30*(-1+2*(double)rand() / RAND_MAX);
-        planets[i].vx = 10*(double)rand() / RAND_MAX;
-        planets[i].vy = 10*(double)rand() / RAND_MAX;
+
+        rho = 15+50*((double)rand() / RAND_MAX);
+        alpha = 2*PI*((double)rand() / RAND_MAX);
+        omega = 0.025;
+
+        planets[i].x = rho*cos(alpha);
+        planets[i].y = rho*sin(alpha);
+        planets[i].vx = -omega*rho*sin(alpha);
+        planets[i].vy = omega*rho*cos(alpha);//1.25*((double)rand() / RAND_MAX);
         planets[i].visible = true;
         planets[i].radius = (double)rand() / RAND_MAX;
         fprintf(fwrite,"%lf\n",planets[i].radius);
@@ -89,98 +99,103 @@ void printPlanets(Planet planets[]){ //Hay alguna forma de hacer esto mas limpio
             fprintf(fwrite,"%lf\n", planets[i].y);
         }
         fprintf(fwrite,"\n");
-    }
-
-void move_planets(Planet planets[]){
-        FILE* fwrite;
-        fwrite = fopen("planetesimales.txt","a");
-        double r[N][2],v[N][2],a[N][2],w[N][2];
-        double new_r[N][2],new_v[N][2],new_a[N][2];
-        double m[N];
-        for(int i=0; i<N; i++){ //Reuso las funciones definidas en sistema_solar.cpp
-            r[i][0] = planets[i].x;
-            r[i][1] = planets[i].y;
-            v[N][0] = planets[i].vx;
-            v[N][1] = planets[i].vy;
-            m[i] = planets[i].mass;
-        }
-        calculate_pos(r,v,a,new_r); //Paso 2: evaluar new_r == r(t+h)
-        calculate_w(v,a,w); //Paso 2.5: evaluar w
-        calculate_acc(m,new_r,new_a); //Paso 3: evaluar new_a == a(t+h)
-        calculate_vel(w,new_a,new_v); //Paso 4: evaluar new_v
-        for(int i=0;i<N;i++){ //Paso 5: Reinicializar las variables
-            for(int j=0;j<dim;j++){
-                r[i][j] = new_r[i][j];
-                v[i][j] = new_v[i][j];
-                a[i][j] = new_a[i][j];
-            }
-        }
-        //Paso 6: Escribir las nuevas posiciones en el fichero
-        for(int i=0;i<N;i++){
-                if(planets[i].visible==true){
-                fprintf(fwrite,"%lf, ", new_r[i][0]);
-                fprintf(fwrite,"%lf\n", new_r[i][1]);
-                }
-                else{
-                fprintf(fwrite,"%lf, ", new_r[i][0]);
-                fprintf(fwrite,"%lf\n", new_r[i][1]);
-                }
-        }
-        fprintf(fwrite,"\n");
+        fclose(fwrite);
     }
 
 void colision(Planet &p1, Planet &p2){
-        if(p1.rock == true && p2.rock == true && p1.visible==true && p2.visible==true){
+    double distance;
+    distance = sqrt((p1.x-p2.x)*(p1.x-p2.x)+(p1.y-p2.y)*(p1.y-p2.y));
+    if(p1.visible==true && p2.visible==true && distance<p1.radius + p2.radius){ //Only visible planets can collide
+
+        if(p1.rock == true && p2.rock == true){ //Rocky planets can always collide if they are close
             p2.visible = false;
+            p2.x = 0.0;
+            p2.y = 0.0;
             p1.radius = p1.radius*(pow((p1.mass + p2.mass)/p1.mass,1.0/3));
             p1.mass = p1.mass + p2.mass;
         }
-}
+        if(p1.rock == false && p1.rock == false){ //Gas planets only collide if out a certain distance
+            double dist_asteroids = 30.0; //This value has to be determined better
+            if((p1.x*p1.x + p1.y*p1.y)>dist_asteroids*dist_asteroids && (p2.x*p2.x + p2.y*p2.y)>dist_asteroids*dist_asteroids){
+                p2.visible = false;
+                p2.x = 0.0;
+                p2.y = 0.0;
+                p1.radius = p1.radius*(pow((p1.mass + p2.mass)/p1.mass,1.0/3));
+                p1.mass = p1.mass + p2.mass;
+            }
 
-void calculate_acc(double m[],double r[][2], double (&a)[N][2]){
-    for(int i=0;i<N;i++)
-    {
-        a[i][0]=0.0;
-        a[i][1]=0.0;
-        if(i=!0){
-            double modulo = (r[i][0]-r[0][0])*(r[i][0]-r[0][0])+(r[i][1]-r[0][1])*(r[i][1]-r[0][1]); //El sol en cero
-            double dist = pow(modulo,3.0/2.0);
-            a[i][0]= m[0]*(r[i][0]-r[0][0])/dist;
-            a[i][1]= m[0]*(r[i][1]-r[0][1])/dist;
         }
-        
     }
 }
 
-void calculate_pos(double r[][2], double v[][2], double a[][2], double (&new_r)[N][2]){
+void acceleration(Planet planets[]){
+    planets[0].ax = 0.0;
+    planets[0].ay = 0.0;
+    double dist_sun;
+
+    for(int i=1;i<N;i++){
+        if(planets[i].visible == true){
+        dist_sun = (planets[i].x-planets[0].x)*(planets[i].x-planets[0].x) + (planets[i].y-planets[0].y)*(planets[i].y-planets[0].y);
+        dist_sun = pow(dist_sun,3.0/2.0);
+        planets[i].ax = -planets[0].mass*(planets[i].x-planets[0].x)/dist_sun;
+        planets[i].ay = -planets[0].mass*(planets[i].y-planets[0].y)/dist_sun;
+        }
+    }
+}
+
+void positions(Planet planets[]){
+    
     for(int i=0;i<N;i++){
-        for(int j=0;j<dim;j++){
-            new_r[i][j] = r[i][j] + h*v[i][j] + 0.5*h*h*a[i][j];
+        if(planets[i].visible == true){
+        planets[i].x = planets[i].x + h*planets[i].vx + 0.5*h*h*planets[i].ax;
+        planets[i].y = planets[i].y + h*planets[i].vy + 0.5*h*h*planets[i].ay;
+        for(int j=0; j<N; j++){
+            if(j!=i) colision(planets[i],planets[j]);
         }
+    }
     }
 }
 
-void calculate_w(double v[][2], double a[][2], double (&w)[N][2]){
+void w(Planet planets[]){
+    
     for(int i=0;i<N;i++){
-        for(int j=0;j<dim;j++){
-            w[i][j] = v[i][j] + 0.5*h*a[i][j];
-        }
+        if(planets[i].visible == true){
+        planets[i].wx = planets[i].vx + 0.5*h*planets[i].ax;
+        planets[i].wy = planets[i].vy + 0.5*h*planets[i].ay;
+    }
     }
 }
 
-void calculate_vel(double w[][2],double new_a[][2],double (&new_v)[N][2]){
+void velocity(Planet planets[]){
     for(int i=0;i<N;i++){
-        for(int j=0;j<dim;j++){
-            new_v[i][j] = w[i][j] + 0.5*h*new_a[i][j];
-        }
+        if(planets[i].visible == true){
+        planets[i].vx = planets[i].wx + 0.5*planets[i].ax;
+        planets[i].vy = planets[i].wy + 0.5*planets[i].ay;
     }
+    }
+}
+
+void move(Planet planets[]){
+    positions(planets);
+    w(planets);
+    acceleration(planets);
+    velocity(planets);
 }
 
 
 int main(){
+    FILE *fwrite;
+    fwrite = fopen("planetesimales.txt","w");
+    fprintf(fwrite,"");
+    fclose(fwrite);
+
     Planet planets[N];
     ini_planets(planets);
     printPlanets(planets);
-    for(int i=1;i<10;i++){move_planets(planets);} //Tarda muchiiisimo
+    acceleration(planets); //Parecen muy pequeñas...
+    for(int i=0; i<10000; i++){
+        move(planets);
+        printPlanets(planets);
+    }
 }
 
