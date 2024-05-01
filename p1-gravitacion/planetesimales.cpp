@@ -5,11 +5,19 @@
 
 const double G = 6.6743e-11;
 const double mass_sun = 1.99e30;
-const double c = 1.99e30;
+const double c = 1.496e11;
 const int N = 300;
 const int dim = 2;
 const double h = 0.1;
 const double PI = 3.1415;
+
+//Hay que definir las constantes que permiten pasar de SI a las unidades del problema SP
+//Las constantes se definen como SP == alpha * SI
+
+const double convert_mass = 5.025e-31; //inverse of sun mass
+const double convert_dist = 6.684e-12; //inverse of c
+const double convert_time = 1.992e-7; //in seconds
+
 
 using namespace std;
 
@@ -25,7 +33,7 @@ public:
     double wx, wy;
     bool visible = true; //False si ha sido absorbido; True si no ha sido absorbido
     bool rock; //False si es gaseoso; True si es rocoso
-    
+
 };
 
 
@@ -47,11 +55,9 @@ void colision(Planet &p1, Planet &p2);
 //Print posiciones de planetas
 void printPlanets(Planet planets[]);
 
-
-
 void ini_planets(Planet planets[]){ //Me he quedado x aqui.
     
-    planets[0].mass = 1.5;
+    planets[0].mass = 1.0;
     planets[0].x = 0.0;
     planets[0].y = 0.0;
     planets[0].vx = 0.0;
@@ -62,30 +68,37 @@ void ini_planets(Planet planets[]){ //Me he quedado x aqui.
     planets[0].wy = 0.0;  
 
     planets[0].radius = 2.0;
-    planets[0].rock = false; //El sol no interacctua en principio.
+    planets[0].rock = false; //El sol no interactua en principio.
 
     double omega; //angular velocity
     double rho; //polar coordinate
     double alpha; //angular coordinate
     FILE *fwrite;
     fwrite = fopen("radius.txt","w");
-    fprintf(fwrite,"%lf\n",planets[0].radius);
+    fprintf(fwrite,"%.8e\n",planets[0].radius);
     for(int i=1;i<N;i++){
-        planets[i].mass = 0.01*(double)rand() / RAND_MAX;
-        if(i<=N/2) planets[i].rock = true;
+        
+        //All planetesimals have mercury mass and radius (Neptune)
+        planets[i].mass = 2.066e-5;
+        planets[i].radius = 1.646e-4;
+        
+        if(i<N/10) planets[i].rock = true;
         else planets[i].rock = false;
 
-        rho = 15+50*((double)rand() / RAND_MAX);
+        rho = 7.5+5*((double)rand() / RAND_MAX);
         alpha = 2*PI*((double)rand() / RAND_MAX);
-        omega = 0.025;
+        
+        if((double)rand()/RAND_MAX < 0.5) omega = 0.1;
+        else omega=-0.1;
+
 
         planets[i].x = rho*cos(alpha);
         planets[i].y = rho*sin(alpha);
-        planets[i].vx = -omega*rho*sin(alpha);
-        planets[i].vy = omega*rho*cos(alpha);//1.25*((double)rand() / RAND_MAX);
+        planets[i].vx = -omega*rho*sin(alpha) - 0.05*rho*cos(alpha);
+        planets[i].vy = omega*rho*cos(alpha) - 0.05*rho*sin(alpha);//1.25*((double)rand() / RAND_MAX);
         planets[i].visible = true;
-        planets[i].radius = (double)rand() / RAND_MAX;
-        fprintf(fwrite,"%lf\n",planets[i].radius);
+        planets[i].radius = 0.1*(double)rand() / RAND_MAX;
+        fprintf(fwrite,"%.8e\n",planets[i].radius);
         
     }
     fclose(fwrite);
@@ -95,8 +108,8 @@ void printPlanets(Planet planets[]){ //Hay alguna forma de hacer esto mas limpio
         FILE *fwrite;
         fwrite = fopen("planetesimales.txt","a");
         for(int i=0;i<N;i++){
-            fprintf(fwrite,"%lf, ",planets[i].x);
-            fprintf(fwrite,"%lf\n", planets[i].y);
+            fprintf(fwrite,"%.8e, ",planets[i].x);
+            fprintf(fwrite,"%.8e\n", planets[i].y);
         }
         fprintf(fwrite,"\n");
         fclose(fwrite);
@@ -105,23 +118,32 @@ void printPlanets(Planet planets[]){ //Hay alguna forma de hacer esto mas limpio
 void colision(Planet &p1, Planet &p2){
     double distance;
     distance = sqrt((p1.x-p2.x)*(p1.x-p2.x)+(p1.y-p2.y)*(p1.y-p2.y));
-    if(p1.visible==true && p2.visible==true && distance<p1.radius + p2.radius){ //Only visible planets can collide
+    if(p1.visible==true && p2.visible==true && distance< (p1.radius + p2.radius)){ //Only visible planets can collide
 
         if(p1.rock == true && p2.rock == true){ //Rocky planets can always collide if they are close
             p2.visible = false;
             p2.x = 0.0;
             p2.y = 0.0;
+            p1.vx = (p1.vx * p1.mass + p2.vx * p2.mass)/(p1.mass + p2.mass);
+            p1.vy = (p1.vy * p1.mass + p2.vy * p2.mass)/(p1.mass + p2.mass);
             p1.radius = p1.radius*(pow((p1.mass + p2.mass)/p1.mass,1.0/3));
             p1.mass = p1.mass + p2.mass;
+            p2.mass = 0.0;
+            p2.radius = 0.0;
+
         }
         if(p1.rock == false && p1.rock == false){ //Gas planets only collide if out a certain distance
-            double dist_asteroids = 30.0; //This value has to be determined better
+            double dist_asteroids = 2.10; //This value has to be determined better
             if((p1.x*p1.x + p1.y*p1.y)>dist_asteroids*dist_asteroids && (p2.x*p2.x + p2.y*p2.y)>dist_asteroids*dist_asteroids){
                 p2.visible = false;
                 p2.x = 0.0;
                 p2.y = 0.0;
+                p1.vx = (p1.vx * p1.mass + p2.vx * p2.mass)/(p1.mass + p2.mass);
+                p1.vy = (p1.vy * p1.mass + p2.vy * p2.mass)/(p1.mass + p2.mass);
                 p1.radius = p1.radius*(pow((p1.mass + p2.mass)/p1.mass,1.0/3));
                 p1.mass = p1.mass + p2.mass;
+                p2.mass = 0.0;
+                p2.radius = 0.0;
             }
 
         }
@@ -182,7 +204,6 @@ void move(Planet planets[]){
     velocity(planets);
 }
 
-
 int main(){
     FILE *fwrite;
     fwrite = fopen("planetesimales.txt","w");
@@ -192,10 +213,12 @@ int main(){
     Planet planets[N];
     ini_planets(planets);
     printPlanets(planets);
-    acceleration(planets); //Parecen muy pequeñas...
+    acceleration(planets);
     for(int i=0; i<10000; i++){
         move(planets);
         printPlanets(planets);
     }
+    for(int i=0;i<N;i++){
+        printf("%lf\n",planets[i].radius);
+    }
 }
-
