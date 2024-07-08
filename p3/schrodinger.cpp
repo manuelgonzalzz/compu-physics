@@ -1,15 +1,22 @@
 #include "complex.h"
 #include <stdio.h>
 #include <cmath>
+#include <random>
+#include <chrono>
 
 const int N = 1000; //Intervalo espacial
 const double PI = 3.14159265358979;
 const int ncicles = 250;
-const double lambda = 1.0;
+const double lambda = 0.5;
 const fcomplex zero = Complex(0.0,0.0);
 const fcomplex one = Complex(1.0,0.0);
 const fcomplex minusone = Complex(-1.0,0.0);
 void resetfile();
+
+using namespace std;
+unsigned seed1 = chrono::system_clock::now().time_since_epoch().count();
+mt19937_64 generator(seed1);
+uniform_real_distribution<double> r_distribution(0., 1.);
 
 class wavefunction{
 
@@ -42,7 +49,7 @@ void inicialize(){
 
     for(int j=0; j<N; j++){
         if(j>0.4*N && j<0.6*N) V_t[j] = lambda*k0_t*k0_t;
-        rho = exp(-8.0*(4*j-N)*(4*j-N)/(N*N));
+        rho = exp(-8.0*(4*j-N)*(4*j-N)/(N*N))/sqrt(integral);
         arg = k0_t*j;
         re = rho*cos(arg);
         im = rho*sin(arg);
@@ -119,7 +126,7 @@ void print(){ //Print potential barrier, density of prob. and norm in different 
         probability = Cabs(phi[j])*Cabs(phi[j]);
         norm = norm + probability;
         fprintf(fwrite,"%i, ",j);
-        fprintf(fwrite,"%e, ",probability);
+        fprintf(fwrite,"%e, ",probability*N);
         fprintf(fwrite,"%e\n",V_t[j]);
     }
     fprintf(fwrite,"\n");
@@ -127,6 +134,17 @@ void print(){ //Print potential barrier, density of prob. and norm in different 
     fprintf(fnorm,"%lf\n",norm);
     fclose(fnorm);
 }
+
+void renormalize(){
+    double integral = 0.0;
+    for(int j=0;j<N;j++){
+        integral = integral + Cabs(phi[j])*Cabs(phi[j]);
+    }
+    for(int j=0;j<N;j++){
+        phi[j] = RCmul(1.0/sqrt(integral),phi[j]);
+    }
+}
+
 };
 
 void resetfile(){
@@ -140,16 +158,61 @@ fclose(fwrite);
 fclose(fnorm);
 }
 
+/*Voluntario. Calculate Transmission Coeficcient*/
+
+bool detect(wavefunction wave);
+
+bool detect(wavefunction wave){
+    double random;
+    double prob_right = 0; //Probability that the particle tunnels through the barrier
+    for(int j=2*N/5;j<N;j++){
+        prob_right = prob_right + Cabs(wave.phi[j])*Cabs(wave.phi[j]);
+    }
+    random = r_distribution(generator);
+    if(random<prob_right){ //Random event with probability prob_right
+        return true;
+    }
+    else return false;
+}
+
 
 int main(){
     resetfile();
     wavefunction wave;
     wave.inicialize();
     wave.print();
-    for(int k=0;k<4000;k++){
+    FILE *fdetect;
+    fdetect = fopen("transmission.txt","w");
+    int transmission = 0;
+    for(int Nexperiments=0; Nexperiments<1000 ; Nexperiments++){
+    bool seguir = true;
+    int totaltime = 0;
+    while(totaltime < 4000 && seguir){
         wave.calc_beta();
         wave.calc_Xi();
         wave.calc_phi();
-        wave.print();
+        if(Nexperiments==0) wave.print(); //Only print first wave
+        if(totaltime==2500){
+            if(detect(wave)==true){ //If the particle is detected the loop ends
+                seguir = false;
+                transmission++;
+            }
+
+            /*else{
+                //Set phi[j]=0 to the right
+                for(int j=2*N/5;j<N;j++){
+                    wave.phi[j] = zero;
+                }
+            wave.renormalize();
+            }*/
+
+            fprintf(fdetect,"%i,",Nexperiments);
+            fprintf(fdetect,"%i\n",transmission);
+        }
+
+        totaltime++;
     }
+    }
+    fclose(fdetect);
 }
+
