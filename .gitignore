@@ -71,5 +71,4 @@ dkms.conf
 *.ipynb
 
 *.txt
-*.py
 *.DS_store
