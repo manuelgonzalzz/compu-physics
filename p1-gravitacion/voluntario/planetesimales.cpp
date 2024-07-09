@@ -76,7 +76,7 @@ void ini_planets(Planet planets[]){ //Me he quedado x aqui.
     
     double r0=7.5;
     double delta=2./3;
-    double omega = 0.1; //angular velocity
+    double omega = 0.1;
     double vr = -0.05;
     
     
@@ -253,14 +253,28 @@ int main(){
     printPlanets(planets);
     acceleration(planets);
 
+    //Distintos Modos de ejecución
+    int MODE = 1;
+    
+if(MODE==0){//MODO 0. Se printea la evolución temporal de los planetas desde el instante inicial. Y se guarda en el archivo para la simulacion
+
+    
     /*for(int i=0;i<N;i++){
         printf("%e\n",planets[i].mecanic_energy());
     }*/
 
     for(int i=0; i<10000; i++){
         move(planets);
+        printPlanets(planets);
+    }
+}
+if(MODE==1){//MODO 1. Sólo se printea el sistema final. Y se calculan las características del sistema gravitacional en foutput
+    for(int i=0; i<10000; i++){
+        move(planets);
         if(i>9000) printPlanets(planets);
     }
+
+
 
     fprintf(foutput,"index, radio, num_colisiones, energia_interna, excentricidad\n");
     int planet_index[N] = {0};
@@ -300,6 +314,8 @@ int main(){
             printf("%.3e\n",planets[i].mass);
         }
     }
+     fclose(foutput);
+}
 
-    fclose(foutput);
+
 }
