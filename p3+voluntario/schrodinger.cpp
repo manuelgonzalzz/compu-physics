@@ -3,11 +3,13 @@
 #include <cmath>
 #include <random>
 #include <chrono>
+#include <string>
+#include <iostream>
+using namespace std;
 
 const int N = 1000; //Intervalo espacial
 const double PI = 3.14159265358979;
 const int ncicles = 250;
-const double lambda = 0.5;
 const fcomplex zero = Complex(0.0,0.0);
 const fcomplex one = Complex(1.0,0.0);
 const fcomplex minusone = Complex(-1.0,0.0);
@@ -36,7 +38,7 @@ class wavefunction{
     fcomplex beta[N];
     
     
-void inicialize(){
+void inicialize(double lambda){
     double rho;
     double arg;
     double re;
@@ -161,10 +163,11 @@ fclose(fnorm);
 /*Voluntario. Calculate Transmission Coeficcient*/
 
 bool detect(wavefunction wave);
+void showProgress(int progress, int total);
 
 bool detect(wavefunction wave){
     double random;
-    double prob_right = 0; //Probability that the particle tunnels through the barrier
+    double prob_right = 0.0; //Probability that the particle tunnels through the barrier
     for(int j=2*N/5;j<N;j++){
         prob_right = prob_right + Cabs(wave.phi[j])*Cabs(wave.phi[j]);
     }
@@ -175,44 +178,55 @@ bool detect(wavefunction wave){
     else return false;
 }
 
+// Función para mostrar una barra de progreso
+void showProgress(int progress, int total) {
+    int barWidth = 70;
+    float ratio = progress / (float)total;
+    int c = ratio * barWidth;
+
+    cout << "[";
+    for (int x = 0; x < c; x++) cout << "=";
+    for (int x = c; x < barWidth; x++) cout << " ";
+    cout << "] " << int(ratio * 100.0) << " %\r";
+    cout.flush();
+}
+
 
 int main(){
+double lambda_list[] = {0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0}; //Lambda values to test
+for(int i=0; i<10;i++){
+    double lambda = lambda_list[i];
+    string file_name = "lambda=" + to_string(lambda) + ".txt";
     resetfile();
     wavefunction wave;
-    wave.inicialize();
-    wave.print();
     FILE *fdetect;
-    fdetect = fopen("transmission.txt","w");
+    fdetect = fopen(file_name.c_str(),"w");
     int transmission = 0;
-    for(int Nexperiments=0; Nexperiments<1000 ; Nexperiments++){
+    for(int Nexperiments=1; Nexperiments<=1000 ; Nexperiments++){
+    wave.inicialize(lambda);
     bool seguir = true;
     int totaltime = 0;
     while(totaltime < 4000 && seguir){
         wave.calc_beta();
         wave.calc_Xi();
         wave.calc_phi();
-        if(Nexperiments==0) wave.print(); //Only print first wave
+        if(Nexperiments==1) wave.print(); //Only print first wave
         if(totaltime==2500){
             if(detect(wave)==true){ //If the particle is detected the loop ends
                 seguir = false;
                 transmission++;
             }
-
-            /*else{
-                //Set phi[j]=0 to the right
-                for(int j=2*N/5;j<N;j++){
-                    wave.phi[j] = zero;
-                }
-            wave.renormalize();
-            }*/
-
-            fprintf(fdetect,"%i,",Nexperiments);
-            fprintf(fdetect,"%i\n",transmission);
+            else seguir = false;
+            fprintf(fdetect,"%i, ",Nexperiments);
+            fprintf(fdetect,"%i, ",transmission);
+            fprintf(fdetect,"%lf\n", 1.0*transmission/Nexperiments);
         }
-
         totaltime++;
     }
+    showProgress(Nexperiments, 1000);
     }
     fclose(fdetect);
 }
+}
+
 

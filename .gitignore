@@ -67,8 +67,4 @@ dkms.conf
 *.txt
 *.dat
 
-# Jupyter notebook
-*.ipynb
-
-*.txt
 *.DS_store
