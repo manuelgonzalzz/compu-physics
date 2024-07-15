@@ -63,8 +63,5 @@ dkms.conf
 # VSCode compile options
 .vscode
 
-# Output files
-*.txt
-*.dat
 
 *.DS_store
