@@ -1,6 +1,6 @@
-# 🌌 Computational Physics – Winter Semester 2023/2024
+# 🌌 Computational Physics – Summer Semester 2024
 
-This repository contains assignments and a voluntary project completed for the *Computational Physics* course at **Universidad de Granada** during the Winter Semester 2023/2024.
+This repository contains assignments and a voluntary project completed for the *Computational Physics* course at **Universidad de Granada** during the Summer Semester 2024.
 
 ## 📁 Repository Structure
 
